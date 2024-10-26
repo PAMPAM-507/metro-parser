@@ -76,7 +76,6 @@ class XlsxResultWriter(ResultWriter):
     
 class JoinAllFiles(ABC):
     
-    @staticmethod
     @abstractmethod
     def join():
         pass
