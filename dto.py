@@ -31,3 +31,6 @@ class PriceDTO:
     regular_price: str
     promo_price: str
 
+
+
+

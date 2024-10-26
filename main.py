@@ -14,18 +14,16 @@
 # промо цена,
 # бренд.
 
-import multiprocessing
-import os
-import threading
-from typing import Dict, Iterable, List, NoReturn
+import asyncio
+from typing import AsyncIterable, Dict, Iterable, List, NoReturn
 from dataclasses import dataclass, field
 import traceback
 
-import requests
+import aiohttp
 from bs4 import BeautifulSoup
 
 from dto import ParserReportDTO, PriceDTO, ProductCardReportDTO
-from save_result import JoinAllXlsxFiles, XlsxResultWriter
+from save_result import CleanXlsxFiles, XlsxResultWriter, ResultWriter
 
 
 headers = {
@@ -101,20 +99,22 @@ COOKIES_LIST_MOSCOW = [
     },
 
 ]
-
+ALL_COOKIES = COOKIES_LIST_ST_PT + COOKIES_LIST_MOSCOW
 
 class MetroParser():
 
-    def __init__(self, url: str,) -> NoReturn:
+    def __init__(self, url: str, xlsx_result_writer: ResultWriter) -> NoReturn:
         self.url = url
+        self.xlsx_result_writer = xlsx_result_writer
 
     @staticmethod
-    def __get_request(product_link: str, cookies: Dict[str, str], headers: Dict[str, str] = headers) -> str:
-        response = requests.get(product_link, 
-                                cookies=cookies, 
-                                headers=headers,)
-        if response.status_code == 200:
-            return response.text
+    async def __get_request(product_link: str, cookies: Dict[str, str], headers: Dict[str, str] = headers) -> str:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(product_link, 
+                                   cookies=cookies, 
+                                   headers=headers) as resp:
+                if resp.status == 200:
+                    return await resp.text()
 
     @staticmethod
     def __get_brand_index(soup: BeautifulSoup):
@@ -124,7 +124,7 @@ class MetroParser():
         index = product_attrs_list.index('Бренд')
         return index
 
-    def __get_data_from_card(self, parameter: ProductCardReportDTO) -> ParserReportDTO:
+    async def __get_data_from_card(self, parameter: ProductCardReportDTO) -> ParserReportDTO:
 
         product_link = parameter.product_link
         regular_price = parameter.regular_price
@@ -132,13 +132,10 @@ class MetroParser():
         cookies = parameter.cookies
 
         try:
-            response = self.__get_request(product_link, 
-                                          cookies=cookies, 
-                                          headers=headers)
+            response = await self.__get_request(product_link, cookies=cookies, headers=headers)
         except Exception as e:
             print(f"Ошибка при получении данных для {product_link}: {e}")
             traceback.print_exc()
-            # return None
 
         soup = BeautifulSoup(response, 'lxml')
 
@@ -230,21 +227,19 @@ class MetroParser():
                 promo_price, regular_price = prices[0:2]
                 promo_price, regular_price = promo_price.text, regular_price.text
 
-        # print(regular_price, promo_price)
-
         regular_price = ''.join(str(regular_price).split())
         promo_price = ''.join(str(promo_price).split())
 
         return PriceDTO(regular_price=regular_price,
                         promo_price=promo_price)
 
-    def run(self, cookies_list: List[Dict[str, str]]) -> Iterable[ProductCardReportDTO]:
+    async def run(self, cookies_list: List[Dict[str, str]]) -> ProductCardReportDTO:
         for cookies in cookies_list:
             page_number = 1
 
             while True:
                 url = self.url + f'{page_number}'
-                response = self.__get_request(product_link=url, 
+                response = await self.__get_request(product_link=url, 
                                               cookies=cookies, 
                                               headers=headers)
                 
@@ -281,63 +276,35 @@ class MetroParser():
 
                     price = self.__get_prices(card)
 
-                    information = self.__get_data_from_card(ProductCardReportDTO(
+                    information = await self.__get_data_from_card(ProductCardReportDTO(
                         product_link=card_url,
                         regular_price=price.regular_price,
                         promo_price=price.promo_price
                     ))
-
-                    yield information
-
+                
+                    self.xlsx_result_writer.write(product=information,)
+                
                 page_number += 1
 
 
-def main(cookies_list: List[Dict[str, str]], number: int=1) -> NoReturn:
-
-    result_file = f'./result_file{number}.xlsx'
-
-    # Если экземпляр кофе есть хотя бы в одном из филиалов Metro (Москва и Санкт-Петербург)
-    # и доступен для покупки онлайн, то
-    # товар будет добавлен в итоговый xlsx-файл
-
-    # Ссылка на растворимый кофе, который есть в наличии
+async def main(cookies_list: List[Dict[str, str]]) -> NoReturn:
+    result_file = f'./result.xlsx'
     url = f'https://online.metro-cc.ru/category/chaj-kofe-kakao/kofe?from=under_search&in_stock=1&attributes=1710000248%3Arastvorimyy&page='
-    print('process number: ', number)
 
     xlsx_result_writer = XlsxResultWriter(result_file=result_file)
-    xlsx_result_writer.write(product_generator=MetroParser(url=url,).run(cookies_list),
-                             worksheet=f'Кофе')
+    
+    tasks = [asyncio.create_task(MetroParser(url=url, 
+                                             xlsx_result_writer=xlsx_result_writer).run([cookies])) for cookies in cookies_list]
+    
+    await asyncio.gather(*tasks)
 
-
+    xlsx_result_writer.close()
+    
 if __name__ == '__main__':
+    
+    asyncio.run(main(cookies_list=ALL_COOKIES))
 
-    process1 = multiprocessing.Process(
-        target=main, args=(COOKIES_LIST_ST_PT, 1))
-    process2 = multiprocessing.Process(
-        target=main, args=(COOKIES_LIST_MOSCOW[:4], 2))
-    process3 = multiprocessing.Process(
-        target=main, args=(COOKIES_LIST_MOSCOW[4:7], 3))
-    process4 = multiprocessing.Process(
-        target=main, args=(COOKIES_LIST_MOSCOW[7:9], 4))
-    process5 = multiprocessing.Process(
-        target=main, args=(COOKIES_LIST_MOSCOW[9:], 5))
+    CleanXlsxFiles.clean(file_path='result.xlsx')
 
-    process1.start()
-    process2.start()
-    process3.start()
-    process4.start()
-    process5.start()
 
-    process1.join()
-    process2.join()
-    process3.join()
-    process4.join()
-    process5.join()
 
-    file_paths = ['result_file1.xlsx',
-                  'result_file2.xlsx',
-                  'result_file3.xlsx',
-                  'result_file4.xlsx',
-                  'result_file5.xlsx']
-
-    JoinAllXlsxFiles().join(file_paths)
