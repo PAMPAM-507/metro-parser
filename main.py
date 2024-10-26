@@ -15,7 +15,7 @@
 # бренд.
 
 import asyncio
-from typing import AsyncIterable, Dict, Iterable, List, NoReturn
+from typing import Dict, List, NoReturn
 from dataclasses import dataclass, field
 import traceback
 
@@ -103,9 +103,9 @@ ALL_COOKIES = COOKIES_LIST_ST_PT + COOKIES_LIST_MOSCOW
 
 class MetroParser():
 
-    def __init__(self, url: str, xlsx_result_writer: ResultWriter) -> NoReturn:
+    def __init__(self, url: str, result_writer: ResultWriter) -> NoReturn:
         self.url = url
-        self.xlsx_result_writer = xlsx_result_writer
+        self.result_writer = result_writer
 
     @staticmethod
     async def __get_request(product_link: str, cookies: Dict[str, str], headers: Dict[str, str] = headers) -> str:
@@ -282,19 +282,25 @@ class MetroParser():
                         promo_price=price.promo_price
                     ))
                 
-                    self.xlsx_result_writer.write(product=information,)
+                    self.result_writer.write(product=information,)
                 
                 page_number += 1
 
 
 async def main(cookies_list: List[Dict[str, str]]) -> NoReturn:
     result_file = f'./result.xlsx'
+    
+    # Если экземпляр кофе есть хотя бы в одном из филиалов Metro (Москва и Санкт-Петербург)
+    # и доступен для покупки онлайн, то
+    # товар будет добавлен в итоговый xlsx-файл
+    
+    # Ссылка на растворимый кофе, который есть в наличии
     url = f'https://online.metro-cc.ru/category/chaj-kofe-kakao/kofe?from=under_search&in_stock=1&attributes=1710000248%3Arastvorimyy&page='
 
     xlsx_result_writer = XlsxResultWriter(result_file=result_file)
     
     tasks = [asyncio.create_task(MetroParser(url=url, 
-                                             xlsx_result_writer=xlsx_result_writer).run([cookies])) for cookies in cookies_list]
+                                             result_writer=xlsx_result_writer).run([cookies])) for cookies in cookies_list]
     
     await asyncio.gather(*tasks)
 
