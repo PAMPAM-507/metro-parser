@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import NoReturn
 
 import xlsxwriter
 import pandas as pd
@@ -16,15 +15,15 @@ class ResultWriter(ABC):
 class XlsxResultWriter(ResultWriter):
     
     
-    def __init__(self, result_file: str,) -> NoReturn:
+    def __init__(self, result_file: str,) -> None:
         self.file_path = result_file
         self.result_file = xlsxwriter.Workbook(result_file)
         self.current_row = 0
         
-    def close(self) -> NoReturn:
+    def close(self) -> None:
         self.result_file.close()
         
-    def write(self, product: ProductCardReportDTO, worksheet: str='Кофе') -> NoReturn:
+    def write(self, product: ProductCardReportDTO, worksheet: str='Кофе') -> None:
         if self.current_row == 0:
             # Если это первая запись, создаём новый лист и добавляем заголовки
             self.page = self.result_file.add_worksheet(worksheet)
@@ -49,14 +48,14 @@ class CleanFiles(ABC):
     
     @staticmethod
     @abstractmethod
-    def clean(file_path: str) -> NoReturn:
+    def clean(file_path: str) -> None:
         pass
 
 
 class CleanXlsxFiles(CleanFiles):
     
     @staticmethod
-    def clean(file_path: str) -> NoReturn:
+    def clean(file_path: str) -> None:
         df = pd.read_excel(file_path)
 
         df = df.dropna(subset=['Id'])

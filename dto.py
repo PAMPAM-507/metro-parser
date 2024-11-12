@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import NoReturn
 
 
 @dataclass
@@ -14,7 +13,7 @@ class ParserReportDTO:
     def __len__(self) -> int:
         return 6
     
-    def __post_init__(self) -> NoReturn:
+    def __post_init__(self) -> None:
         self.promo_price = self.promo_price if int(self.promo_price) > 0 else None
 
 

@@ -15,7 +15,7 @@
 # бренд.
 
 import asyncio
-from typing import Dict, List, NoReturn
+from typing import Dict, List
 from dataclasses import dataclass, field
 import traceback
 
@@ -103,7 +103,7 @@ ALL_COOKIES = COOKIES_LIST_ST_PT + COOKIES_LIST_MOSCOW
 
 class MetroParser():
 
-    def __init__(self, url: str, result_writer: ResultWriter) -> NoReturn:
+    def __init__(self, url: str, result_writer: ResultWriter) -> None:
         self.url = url
         self.result_writer = result_writer
 
@@ -287,7 +287,7 @@ class MetroParser():
                 page_number += 1
 
 
-async def main(cookies_list: List[Dict[str, str]]) -> NoReturn:
+async def main(cookies_list: List[Dict[str, str]]) -> None:
     result_file = f'./result.xlsx'
     
     # Если экземпляр кофе есть хотя бы в одном из филиалов Metro (Москва и Санкт-Петербург)
